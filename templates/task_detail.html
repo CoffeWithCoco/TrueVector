@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+{% block title %}{{ technique.meta.id }} · {{ technique.meta.name }} — TrueVector{% endblock %}
+{% block page_title %}{{ technique.meta.id }} · {{ technique.meta.name }}{% endblock %}
+
+{% block topbar_actions %}
+  <a href="/tasks" class="btn btn-ghost">← Techniques</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Meta strip -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <div class="campaign-meta-grid">
+      <div class="meta-item">
+        <span class="meta-label">ID</span>
+        <span class="meta-value"><span class="technique-id">{{ technique.meta.id }}</span></span>
+      </div>
+      <div class="meta-item" style="flex:1;min-width:200px;">
+        <span class="meta-label">Threat it represents</span>
+        <span class="meta-value" style="font-size:.875rem;color:var(--text-muted);">{{ technique.meta.threat }}</span>
+      </div>
+      {% if technique.meta.expected_attachments %}
+      <div class="meta-item">
+        <span class="meta-label">Expected attachments</span>
+        <span class="meta-value" style="font-size:.875rem;">
+          {% for att in technique.meta.expected_attachments %}
+            <code style="background:var(--border);padding:1px 6px;border-radius:3px;margin-right:4px;">{{ att }}</code>
+          {% endfor %}
+        </span>
+      </div>
+      {% endif %}
+      <div class="meta-item">
+        <span class="meta-label">External images</span>
+        <span class="lv {% if technique.meta.expected_images %}lv--info{% else %}lv--neutral{% endif %}">
+          {{ 'Yes' if technique.meta.expected_images else 'No' }}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab navigation -->
+<div class="task-tabs" id="task-tabs">
+  {% if content.html %}
+  <button class="tab-btn tab-btn--active" data-tab="html">HTML source</button>
+  <button class="tab-btn" data-tab="preview">Preview</button>
+  {% endif %}
+  {% if content.plain %}
+  <button class="tab-btn {% if not content.html %}tab-btn--active{% endif %}" data-tab="plain">Plain text</button>
+  {% endif %}
+  {% if content.attachments %}
+  <button class="tab-btn" data-tab="attach">Attachments ({{ content.attachments|length }})</button>
+  {% endif %}
+  <button class="tab-btn" data-tab="headers">Headers</button>
+</div>
+
+<!-- HTML source tab -->
+{% if content.html %}
+<div class="tab-panel tab-panel--active" id="tab-html">
+  <div class="code-toolbar">
+    <span class="code-lang">HTML</span>
+    <button class="copy-btn" data-target="html-code">Copy</button>
+  </div>
+  <pre class="code-block" id="html-code">{{ html_escaped }}</pre>
+</div>
+
+<!-- Preview tab -->
+<div class="tab-panel" id="tab-preview">
+  <div class="preview-wrapper">
+    <iframe
+      class="email-preview"
+      sandbox="allow-same-origin"
+      srcdoc="{{ content.html | e }}">
+    </iframe>
+  </div>
+</div>
+{% endif %}
+
+<!-- Plain text tab -->
+{% if content.plain %}
+<div class="tab-panel {% if not content.html %}tab-panel--active{% endif %}" id="tab-plain">
+  <div class="code-toolbar">
+    <span class="code-lang">Plain text</span>
+    <button class="copy-btn" data-target="plain-code">Copy</button>
+  </div>
+  <pre class="code-block" id="plain-code">{{ content.plain | e }}</pre>
+</div>
+{% endif %}
+
+<!-- Attachments tab -->
+{% if content.attachments %}
+<div class="tab-panel" id="tab-attach">
+  {% for att in content.attachments %}
+  <div class="attach-item">
+    <div class="attach-meta">
+      <span class="attach-name">{{ att.filename }}</span>
+      <span class="attach-info">{{ att.content_type }} · {{ att.size }} bytes</span>
+    </div>
+    {% if att.is_text %}
+    <div class="code-toolbar" style="margin-top:0;border-top:none;border-bottom:1px solid var(--border);">
+      <span class="code-lang">{{ att.content_type }}</span>
+    </div>
+    <pre class="code-block" style="border-radius:0 0 var(--radius) var(--radius);margin:0;">{{ att.preview | e }}{% if att.preview|length >= 2000 %}
+… (truncated){% endif %}</pre>
+    {% else %}
+    <div style="padding:14px 20px;font-size:.8125rem;color:var(--text-muted);">Binary content — not previewable</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Headers tab -->
+<div class="tab-panel" id="tab-headers">
+  <div class="code-toolbar">
+    <span class="code-lang">RFC 5322 headers (sample)</span>
+  </div>
+  <pre class="code-block">{% for k, v in content.headers.items() %}{{ k }}: {{ v }}
+{% endfor %}</pre>
+</div>
+
+<script>
+(function() {
+  const tabs   = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.tab-panel');
+
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.forEach(b => b.classList.remove('tab-btn--active'));
+      panels.forEach(p => p.classList.remove('tab-panel--active'));
+      btn.classList.add('tab-btn--active');
+      document.getElementById('tab-' + btn.dataset.tab)?.classList.add('tab-panel--active');
+    });
+  });
+
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pre = document.getElementById(btn.dataset.target);
+      if (!pre) return;
+      navigator.clipboard.writeText(pre.textContent).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied';
+        setTimeout(() => btn.textContent = orig, 1600);
+      });
+    });
+  });
+})();
+</script>
+
+{% endblock %}

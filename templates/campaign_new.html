@@ -1,0 +1,114 @@
+{% extends "layout.html" %}
+{% block title %}New campaign — MailProbe{% endblock %}
+{% block page_title %}New campaign{% endblock %}
+{% block topbar_actions %}
+  <a href="/campaigns" class="btn btn-ghost">← Back</a>
+{% endblock %}
+
+{% block content %}
+<form method="post" action="/campaigns" id="campaign-form">
+
+  {% if error %}
+  <div class="alert alert-danger" style="margin-bottom:20px;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Campaign information</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group form-group--wide">
+          <label>Name <span class="required">*</span></label>
+          <input type="text" name="name" required autofocus placeholder="e.g. Proofpoint test — June 2026">
+        </div>
+        <div class="form-group form-group--wide">
+          <label>Description</label>
+          <textarea name="description" rows="2" placeholder="Test context, gateway version, objectives..."></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h2>Techniques to test</h2>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-all">Select all</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-none">None</button>
+        <span class="field-hint" id="pill-counter" style="margin:0;">{{ techniques|length }} selected</span>
+      </div>
+    </div>
+    <div class="card-body" style="padding-top:12px;padding-bottom:12px;">
+      <div class="tcheck-list" id="technique-pills">
+        {% for t in techniques %}
+        {% set is_locked = t.meta.id in locked %}
+        <label class="tcheck {% if not is_locked %}tcheck--on{% endif %}"
+               {% if is_locked %}style="opacity:.5;cursor:not-allowed;"
+               title="Requires Payload hosting configuration in Settings"
+               {% else %}title="{{ t.meta.threat }}"{% endif %}>
+          <span class="tcheck-box"></span>
+          <input type="checkbox" name="techniques" value="{{ t.meta.id }}" class="t-pill-check"
+                 {% if is_locked %}disabled{% else %}checked{% endif %}>
+          <span class="tcheck-id">{{ t.meta.id }}</span>
+          <span class="tcheck-name">{{ t.meta.name }}</span>
+          {% if t.meta.needs_web %}<span class="tc-badge tc-badge--web">WEB</span>{% endif %}
+          {% if is_locked %}<span class="tc-badge" style="background:rgba(234,88,12,.15);color:#ea580c;">needs config</span>{% endif %}
+        </label>
+        {% endfor %}
+      </div>
+      {% if locked %}
+      <p class="field-hint" style="margin-top:10px;color:#ea580c;">
+        Disabled ({{ locked.keys()|join(', ') }}) — these techniques deliver their payload externally
+        and need infrastructure you host.
+        <a href="/settings" style="color:var(--accent);">Configure Payload hosting →</a>
+      </p>
+      {% endif %}
+      <p class="field-hint" style="margin-top:10px;">
+        Hover over each technique to see the threat it represents.
+        <a href="/tasks" target="_blank" style="color:var(--accent);">View code →</a>
+      </p>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:12px;">
+    <a href="/campaigns" class="btn btn-ghost">Cancel</a>
+    <button type="submit" class="btn btn-primary">Create campaign →</button>
+  </div>
+
+</form>
+
+<script>
+  const checks  = [...document.querySelectorAll('.t-pill-check')];
+  const enabled = checks.filter(c => !c.disabled);   // locked techniques are skipped
+  const counter = document.getElementById('pill-counter');
+
+  function syncLabel(cb) {
+    if (cb.disabled) return;
+    cb.closest('.tcheck').classList.toggle('tcheck--on', cb.checked);
+  }
+
+  function updateCounter() {
+    counter.textContent = enabled.filter(c => c.checked).length + ' selected';
+  }
+
+  enabled.forEach(cb => {
+    cb.addEventListener('change', () => { syncLabel(cb); updateCounter(); });
+  });
+
+  document.getElementById('btn-all').addEventListener('click', () => {
+    enabled.forEach(c => { c.checked = true; syncLabel(c); });
+    updateCounter();
+  });
+
+  document.getElementById('btn-none').addEventListener('click', () => {
+    enabled.forEach(c => { c.checked = false; syncLabel(c); });
+    updateCounter();
+  });
+
+  updateCounter();
+</script>
+{% endblock %}

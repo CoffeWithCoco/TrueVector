@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% block title %}Techniques — TrueVector{% endblock %}
+{% block page_title %}Techniques{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 20px;">
+    <p style="font-size:.875rem;color:var(--text-muted);margin:0;">
+      Each technique generates a real email with its payload. Click any of them to see
+      the exact HTML that will be sent to the mailbox, the plain text and the attachments.
+    </p>
+  </div>
+</div>
+
+<div class="techniques-grid">
+  {% for t in techniques %}
+  <a href="/tasks/{{ t.meta.id }}" class="technique-card">
+    <div class="tc-header">
+      <span class="tc-id">{{ t.meta.id }}</span>
+      {% if t.meta.needs_web %}<span class="tc-badge tc-badge--web">WEB</span>{% endif %}
+      {% if t.meta.expected_attachments %}<span class="tc-badge tc-badge--attach">attachment</span>{% endif %}
+      {% if t.meta.expected_images %}<span class="tc-badge tc-badge--img">image</span>{% endif %}
+    </div>
+    <div class="tc-name">{{ t.meta.name }}</div>
+    <div class="tc-threat">{{ t.meta.threat }}</div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

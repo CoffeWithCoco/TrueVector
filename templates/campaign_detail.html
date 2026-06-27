@@ -1,0 +1,318 @@
+{% extends "layout.html" %}
+{% block title %}{{ campaign.name }} — TrueVector{% endblock %}
+{% block page_title %}{{ campaign.name }}{% endblock %}
+
+{% block topbar_actions %}
+  <a href="/campaigns" class="btn btn-ghost">← Campaigns</a>
+  {% if campaign.status == 'pending' %}
+    <form method="post" action="/campaigns/{{ campaign.id }}/launch" style="display:inline;">
+      <button type="submit" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Launch campaign
+      </button>
+    </form>
+  {% elif campaign.status in ('done', 'error') %}
+    {% if not demo_mode %}
+    <form method="post" action="/campaigns/{{ campaign.id }}/reanalyze" style="display:inline;"
+          title="Re-reads the SAME emails already in the mailbox to recover any still marked &quot;not found&quot; (late delivery, a transient read error). It does NOT resend or re-run the tests. To re-test after changing the gateway, launch a new campaign.">
+      <button type="submit" class="btn btn-ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        Re-read mailbox
+      </button>
+    </form>
+    <form method="post" action="/campaigns/{{ campaign.id }}/retest" style="display:inline;"
+          title="Clone this campaign (same techniques) into a new one, ready to launch — to re-test after changing the gateway (Proofpoint, Defender…). This one sends fresh emails.">
+      <button type="submit" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Re-test
+      </button>
+    </form>
+    {% endif %}
+    {% if campaign.status == 'done' %}
+    <a href="/campaigns/{{ campaign.id }}/report.pdf" class="btn btn-ghost">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download PDF
+    </a>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if campaign.status == 'running' %}
+<meta http-equiv="refresh" content="5">
+{% endif %}
+
+<!-- Meta -->
+<div class="card">
+  <div class="card-body">
+    <div class="campaign-meta-grid">
+      <div class="meta-item">
+        <span class="meta-label">Status</span>
+        <span class="badge badge--{{ campaign.status }}">
+          {% if campaign.status == 'running' %}<span class="spinner"></span>{% endif %}
+          {{ campaign.status }}
+        </span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Target mailbox</span>
+        <span class="meta-value">{{ config.target_email if config and config.target_email else '—' }}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Domain</span>
+        <span class="meta-value">{{ config.from_domain if config and config.from_domain else '—' }}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Created</span>
+        <span class="meta-value">{{ campaign.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+      </div>
+      {% if campaign.score is not none %}
+      <div class="meta-item">
+        <span class="meta-label">Score</span>
+        <span class="score score--lg {% if campaign.score >= 80 %}score--good{% elif campaign.score >= 50 %}score--warn{% else %}score--bad{% endif %}">
+          {{ campaign.score }}%
+        </span>
+      </div>
+      {% endif %}
+    </div>
+    {% if campaign.description %}
+    <p style="margin-top:12px;font-size:.875rem;color:var(--text-muted);">{{ campaign.description }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Demo mode banner -->
+{% if demo_mode %}
+<div class="card banner-card banner-card--blue">
+  <div class="banner-body">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <div>
+      <strong>DEMO MODE — simulated results</strong>
+      <p>This campaign ran without SMTP/IMAP configured. The results are
+         <strong>demo data</strong> — they do not reflect a real send or any gateway's behavior.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Running banner -->
+{% if campaign.status == 'running' %}
+<div class="card banner-card banner-card--blue">
+  <div class="banner-body">
+    <span class="spinner spinner--lg"></span>
+    <div>
+      <strong>Campaign running</strong>
+      <p>Emails are being sent and classified. This page refreshes automatically every 5 seconds.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Pending: show selected techniques list -->
+{% if campaign.status == 'pending' %}
+<div class="card">
+  <div class="card-header">
+    <h2>Selected techniques</h2>
+    <span class="text-muted text-sm">{{ chosen_techniques|length }} technique{{ 's' if chosen_techniques|length != 1 }}</span>
+  </div>
+  <div class="card-body">
+    <div class="ready-techniques-grid">
+      {% for t in chosen_techniques %}
+      <div class="ready-technique">
+        <span class="tc-id">{{ t.meta.id }}</span>
+        <span class="font-medium">{{ t.meta.name }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<div class="card banner-card banner-card--green">
+  <div class="banner-body">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <div>
+      <strong>Ready to launch</strong>
+      <p>All set. Click <strong>Launch campaign</strong> to send the {{ chosen_techniques|length }} test emails to the mailbox <code>{{ config.target_email if config and config.target_email else 'configure the mailbox in Settings' }}</code>. Without SMTP/IMAP configured, demo mode is used (simulated results).</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Carrier health (control canaries) -->
+{% if canaries and campaign.carrier_status and campaign.carrier_status != 'unknown' %}
+<div class="card banner-card {% if campaign.carrier_status == 'degraded' %}banner-card--orange{% else %}banner-card--green{% endif %}">
+  <div class="banner-body">
+    {% if campaign.carrier_status == 'degraded' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    <div>
+      <strong>Carrier degraded mid-run — some results may be contaminated</strong>
+      <p>The control canaries show the sender's reputation dropped during the campaign.
+         Techniques marked <span class="result-pill result-pill--warn" style="padding:1px 6px;">carrier-suspect</span>
+         were sent afterwards: a "block"/"junk" verdict on those may reflect the <strong>burned sender</strong>,
+         not their payload. Re-run those from a fresh sender, or trust the ones sent before the drop.</p>
+    </div>
+    {% else %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <div>
+      <strong>Carrier stable</strong>
+      <p>The control canaries stayed in the inbox for the whole run — the sender's reputation held,
+         so the per-technique verdicts reflect the payloads, not a burned sender.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Control canaries</h2>
+    <span class="text-muted text-sm">Benign reputation probes — inbox is the expected (good) outcome</span>
+  </div>
+  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:10px;">
+    {% for c in canaries %}
+    <span class="lv {% if c.placement == 'INBOX' %}lv--pass{% elif c.placement == 'JUNK' %}lv--warn{% elif c.placement == 'MISSING' %}lv--fail{% else %}lv--neutral text-muted{% endif %}">
+      #{{ loop.index }}: {{ c.placement | replace('NOT_FOUND','not found') | replace('MISSING','blocked') | lower }}
+    </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Results -->
+{% if tech_results %}
+<div class="card">
+  <div class="card-header">
+    <h2>Results by technique</h2>
+    <div style="display:flex;gap:16px;align-items:center;">
+      {% set inbox_c    = tech_results | selectattr('placement','eq','INBOX')     | list | length %}
+      {% set junk_c     = tech_results | selectattr('placement','eq','JUNK')      | list | length %}
+      {% set missing_c  = tech_results | selectattr('placement','eq','MISSING')   | list | length %}
+      {% set notfound_c = tech_results | selectattr('placement','eq','NOT_FOUND') | list | length %}
+      <span class="lv lv--pass">{{ missing_c }} blocked</span>
+      <span class="lv lv--warn">{{ junk_c }} junk</span>
+      <span class="lv lv--fail">{{ inbox_c }} in inbox</span>
+      {% if notfound_c %}<span class="lv lv--neutral text-muted">{{ notfound_c }} inconclusive</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="results-list">
+    {% for r in tech_results %}
+    <div class="result-row">
+      <div class="result-header">
+        <div class="result-title">
+          <span class="technique-id">{{ r.technique_id }}</span>
+          <span class="technique-name">{{ r.technique_name }}</span>
+          {% if r.carrier_suspect %}
+          <span class="result-pill result-pill--warn" style="margin-left:8px;"
+                title="Sent after the carrier degraded — this verdict may reflect the burned sender, not the payload.">
+            carrier-suspect
+          </span>
+          {% endif %}
+        </div>
+        {% if r.placement == 'INBOX' %}
+          <span class="result-pill result-pill--fail">INBOX — Failed</span>
+        {% elif r.placement == 'JUNK' %}
+          <span class="result-pill result-pill--warn">JUNK — Partial</span>
+        {% elif r.placement == 'NOT_FOUND' %}
+          <span class="result-pill result-pill--neutral">INCONCLUSIVE</span>
+        {% else %}
+          <span class="result-pill result-pill--pass">BLOCKED</span>
+        {% endif %}
+      </div>
+
+      <div class="layers-grid">
+        <!-- C1 -->
+        <div class="layer">
+          <div class="layer-label">L1 · Delivery</div>
+          <div class="layer-value">
+            {% if r.placement == 'INBOX' %}<span class="lv lv--fail">Inbox</span>
+            {% elif r.placement == 'JUNK' %}<span class="lv lv--warn">Junk</span>
+            {% elif r.placement == 'NOT_FOUND' %}<span class="lv lv--neutral text-muted">Not found</span>
+            {% else %}<span class="lv lv--pass">Not delivered</span>{% endif %}
+          </div>
+        </div>
+        <!-- C2 -->
+        <div class="layer">
+          <div class="layer-label">L2 · Gateway</div>
+          <div class="layer-value layer-value--col">
+            {% if r.gateway_category %}<span class="lv lv--info">CAT: {{ r.gateway_category }}</span>{% endif %}
+            {% if r.scl is not none %}<span class="lv lv--neutral">SCL: {{ r.scl }}</span>{% endif %}
+            {% if r.spf %}<span class="lv lv--neutral">SPF: {{ r.spf }}{% if r.dkim %} · DKIM: {{ r.dkim }}{% endif %}</span>{% endif %}
+            {% if not r.gateway_category and r.scl is none %}<span class="text-muted" style="font-size:.75rem;">No data</span>{% endif %}
+          </div>
+        </div>
+        <!-- C3 -->
+        <div class="layer">
+          <div class="layer-label">L3 · Body</div>
+          <div class="layer-value layer-value--col">
+            {% if r.links_rewritten %}<span class="lv lv--info">Links rewritten</span>{% endif %}
+            {% if r.banner_injected %}<span class="lv lv--info">Banner injected</span>{% endif %}
+            {% if not r.links_rewritten and not r.banner_injected %}<span class="lv lv--pass">Unmodified</span>{% endif %}
+          </div>
+        </div>
+        <!-- C4 -->
+        <div class="layer">
+          <div class="layer-label">L4 · Attachments</div>
+          <div class="layer-value">
+            {% if r.attachments_stripped %}<span class="lv lv--fail">Stripped</span>
+            {% elif r.attachment_names_rx %}<span class="lv lv--pass">Intact</span>
+            {% else %}<span class="lv lv--neutral text-muted">N/A</span>{% endif %}
+          </div>
+        </div>
+        <!-- C5 -->
+        <div class="layer">
+          <div class="layer-label">L5 · Images</div>
+          <div class="layer-value layer-value--col">
+            {% if r.images_stripped %}<span class="lv lv--fail">Stripped</span>
+            {% elif r.images_proxied %}<span class="lv lv--info">Proxied</span>
+            {% elif r.images_present %}<span class="lv lv--pass">Intact</span>
+            {% else %}<span class="lv lv--neutral text-muted">N/A</span>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% elif campaign.status not in ('pending','running') %}
+<div class="card">
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+    <h3>No results</h3>
+    <p>Launch the campaign to generate results.</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Danger zone -->
+<div class="card danger-zone">
+  <div class="card-header"><h2>Danger zone</h2></div>
+  <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+    <div>
+      <div class="font-medium">Delete campaign</div>
+      <div class="text-muted text-sm">This cannot be undone. All results are deleted.</div>
+    </div>
+    <form method="post" action="/campaigns/{{ campaign.id }}/delete"
+          onsubmit="return confirm('Delete this campaign?')">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

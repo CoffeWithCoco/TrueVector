@@ -1,0 +1,394 @@
+{% extends "layout.html" %}
+
+{% block title %}Settings — MailProbe{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+
+  {% if saved %}
+  <div class="alert alert-success">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    Settings saved successfully.
+  </div>
+  {% endif %}
+
+  <form method="post" action="/settings">
+
+    <!-- Sending account -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>
+          <svg style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          Sending account
+        </h2>
+        <span class="text-muted text-sm">SMTP server used to send the test emails</span>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>SMTP host</label>
+            <input type="text" name="smtp_host" value="{{ config.smtp_host or '' }}" placeholder="smtp.gmail.com">
+          </div>
+          <div class="form-group">
+            <label>Port</label>
+            <input type="number" name="smtp_port" value="{{ config.smtp_port or 587 }}" placeholder="587">
+          </div>
+          <div class="form-group">
+            <label>User / Email</label>
+            <input type="text" name="smtp_user" value="{{ config.smtp_user or '' }}" placeholder="probe@company.com" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Password{% if config.smtp_pass %} <span class="field-hint" style="display:inline;">(leave blank to keep)</span>{% endif %}</label>
+            <input type="password" name="smtp_pass" placeholder="{{ '••••••••' if config.smtp_pass else 'App password / password' }}" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label>Sender domain</label>
+            <input type="text" name="from_domain" value="{{ config.from_domain or '' }}" placeholder="company.com">
+            <span class="field-hint"><code>From:</code> domain — must have SPF/DKIM configured.</span>
+          </div>
+          <div class="form-group">
+            <label>Sender name</label>
+            <input type="text" name="from_name" value="{{ config.from_name or 'Security Validator' }}" placeholder="Security Validator">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sending pace -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>
+          <svg style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          Sending pace
+        </h2>
+        <span class="text-muted text-sm">How fast the test emails leave — paced to keep results comparable</span>
+      </div>
+      <div class="card-body">
+
+        <div class="alert" style="background:rgba(45,212,191,0.08);border:1px solid rgba(45,212,191,0.3);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6;">
+          <strong style="color:#2dd4bf;">Why pacing matters.</strong><br>
+          A brand-new sender that bursts ~29 odd messages at one mailbox is itself a suspicious
+          pattern: the gateway can degrade the sender's reputation <em>mid-run</em>, so late emails
+          get a worse verdict for reasons unrelated to their payload. Spacing the sends (with random
+          jitter so it doesn't look like a cron) keeps reputation stable and verdicts comparable.
+          The order is fixed: <strong>stealthiest techniques are sent first, the loud
+          basic-detection ones (EICAR, macros) last</strong>, so a late reputation hit never reaches
+          the subtle vectors. Set the interval to <code>0</code> for a fast burst (e.g. lab / GreenMail).
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Interval between sends (seconds)</label>
+            <input type="number" name="send_interval" min="0" value="{{ config.send_interval if config.send_interval is not none else 90 }}" placeholder="90">
+            <span class="field-hint">Base wait between each email. <code>0</code> = send back-to-back.</span>
+          </div>
+          <div class="form-group">
+            <label>Jitter (± seconds)</label>
+            <input type="number" name="send_jitter" min="0" value="{{ config.send_jitter if config.send_jitter is not none else 30 }}" placeholder="30">
+            <span class="field-hint">Random variation added to each interval. e.g. 90 ± 30 → 60–120s.</span>
+          </div>
+        </div>
+        <span class="field-hint" style="margin-top:8px;display:block;">
+          At 90 ± 30s, a full 29-technique run takes roughly <strong>30–60 minutes</strong>. The
+          campaign page updates live as each email is sent and analyzed.
+        </span>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+          <input type="checkbox" name="canaries_enabled" value="true" style="margin-top:3px;"
+                 {% if config.canaries_enabled is none or config.canaries_enabled %}checked{% endif %}>
+          <span>
+            <strong>Send control canaries</strong>
+            <span class="field-hint" style="display:block;margin-top:2px;">
+              Interleave benign, payload-free emails to measure the <em>sender's</em> reputation
+              during the run. If the canaries start landing in Junk/blocked partway through, the tool
+              flags every technique sent afterwards as <strong>carrier-contaminated</strong> — so you
+              know whether a late "block" is real detection or just a burned sender. Recommended.
+            </span>
+          </span>
+        </label>
+
+        <div class="form-grid" style="margin-top:14px;">
+          <div class="form-group">
+            <label>Canary frequency (every N techniques)</label>
+            <input type="number" name="canary_every" min="1" value="{{ config.canary_every if config.canary_every else 7 }}" placeholder="7">
+            <span class="field-hint">A baseline canary is always sent first and last; this adds one every N techniques in between.</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Receiving mailbox -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>
+          <svg style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          Receiving mailbox
+        </h2>
+        <span class="text-muted text-sm">Address all test templates are sent to</span>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="form-group form-group--wide">
+            <label>Email address</label>
+            <input type="email" name="target_email" value="{{ config.target_email or '' }}" placeholder="testbox@company.com">
+            <span class="field-hint">
+              A mailbox you control. Test emails are sent here and read back via API to analyze what the gateway detected.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verification backend -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>
+          <svg style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l9 4.9V17L12 22 3 17V6.9L12 2z"/><path d="M12 22V12M3 6.9L12 12l9-5.1"/>
+          </svg>
+          Verification backend
+        </h2>
+        <span class="text-muted text-sm">How the tool reads the receiving mailbox to analyze what the gateway did</span>
+      </div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="form-group form-group--wide">
+            <label>Reader provider</label>
+            <select name="reader_backend" id="reader_backend">
+              <option value="imap"      {% if (config.reader_backend or 'imap') == 'imap' %}selected{% endif %}>IMAP (personal Gmail / Outlook.com / SMB)</option>
+              <option value="microsoft" {% if config.reader_backend == 'microsoft' %}selected{% endif %}>Microsoft 365 — Graph API (app-only)</option>
+              <option value="google"    {% if config.reader_backend == 'google' %}selected{% endif %}>Google Workspace — Gmail API (coming soon)</option>
+            </select>
+            <span class="field-hint">For corporate M365 use Graph: no IMAP or mailbox password needed, just an app registered in Entra ID with admin consent.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMAP reader -->
+    <div class="card backend-section" data-backend="imap" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>
+          <svg style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+          </svg>
+          IMAP reader (verification)
+        </h2>
+        <span class="text-muted text-sm">Access to the receiving mailbox to read the test emails and measure what the gateway detected</span>
+      </div>
+      <div class="card-body">
+
+        <div class="alert" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6;">
+          <strong style="color:#818cf8;">MFA / Outlook / Microsoft 365</strong><br>
+          If the mailbox has MFA enabled you <strong>cannot use the regular password</strong> for IMAP.
+          You have two options:
+          <ul style="margin:8px 0 0 18px;padding:0;">
+            <li><strong>App Password</strong> — go to <em>Account security → App passwords</em> and generate a password specific to this app. Works on personal Microsoft accounts and on M365 when the admin allows it.</li>
+            <li><strong>Corporate M365 without App Password</strong> — the admin must enable "IMAP Auth" in the EAC or via PowerShell: <code>Set-CASMailbox -Identity user -ImapEnabled $true</code>. Use the App Password or request an OAuth2 token (XOAUTH2).</li>
+            <li><strong>Gmail</strong> — enable "App passwords" on the account (requires 2FA). Host: <code>imap.gmail.com</code>, port 993.</li>
+          </ul>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>IMAP host</label>
+            <input type="text" name="imap_host" value="{{ config.imap_host or '' }}"
+                   placeholder="imap.gmail.com / outlook.office365.com">
+          </div>
+          <div class="form-group">
+            <label>Port</label>
+            <input type="number" name="imap_port" value="{{ config.imap_port or 993 }}" placeholder="993">
+          </div>
+          <div class="form-group">
+            <label>IMAP user</label>
+            <input type="text" name="imap_user" value="{{ config.imap_user or '' }}"
+                   placeholder="testbox@company.com" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Password / App Password{% if config.imap_pass %} <span class="field-hint" style="display:inline;">(leave blank to keep)</span>{% endif %}</label>
+            <input type="password" name="imap_pass"
+                   placeholder="{{ '••••••••' if config.imap_pass else 'App password or IMAP password' }}"
+                   autocomplete="new-password">
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Microsoft 365 — Graph API (app-only) -->
+    <div class="card backend-section" data-backend="microsoft" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>
+          <svg style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/>
+          </svg>
+          Microsoft 365 — Graph API (app-only)
+        </h2>
+        <span class="text-muted text-sm">Reads the mailbox via Microsoft Graph with no interactive login. For corporate M365 where you are admin.</span>
+      </div>
+      <div class="card-body">
+
+        <div class="alert" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6;">
+          <strong style="color:#818cf8;">Entra ID registration (one time, as admin)</strong>
+          <ol style="margin:8px 0 0 18px;padding:0;">
+            <li><strong>Entra ID → App registrations → New registration</strong> → copy the <em>Application (client) ID</em> and <em>Directory (tenant) ID</em>.</li>
+            <li><strong>Certificates &amp; secrets → New client secret</strong> → copy the value.</li>
+            <li><strong>API permissions → Microsoft Graph → <u>Application</u> permissions → <code>Mail.Read</code></strong> → <em>Grant admin consent</em>.</li>
+            <li><strong>Recommended:</strong> scope access to the test mailbox with <code>New-ApplicationAccessPolicy</code> in Exchange Online.</li>
+          </ol>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Directory (tenant) ID</label>
+            <input type="text" name="ms_tenant_id" value="{{ config.ms_tenant_id or '' }}"
+                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Application (client) ID</label>
+            <input type="text" name="ms_client_id" value="{{ config.ms_client_id or '' }}"
+                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+          </div>
+          <div class="form-group form-group--wide">
+            <label>Client secret{% if config.ms_client_secret %} <span class="field-hint" style="display:inline;">(leave blank to keep)</span>{% endif %}</label>
+            <input type="password" name="ms_client_secret"
+                   placeholder="{{ '••••••••' if config.ms_client_secret else 'Client secret value' }}"
+                   autocomplete="new-password">
+          </div>
+        </div>
+        <span class="field-hint" style="margin-top:8px;display:block;">The mailbox to read is the <strong>Receiving mailbox</strong> above (<code>target_email</code>). It can be a shared mailbox (no license needed).</span>
+
+      </div>
+    </div>
+
+    <!-- Google Workspace — Gmail API -->
+    <div class="card backend-section" data-backend="google" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>
+          <svg style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+          </svg>
+          Google Workspace — Gmail API
+        </h2>
+        <span class="text-muted text-sm">Service account with domain-wide delegation. (Backend not implemented yet.)</span>
+      </div>
+      <div class="card-body">
+        <div class="alert" style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6;">
+          <strong style="color:#eab308;">Coming soon.</strong> You'll be able to paste the service account JSON here (with the <code>gmail.readonly</code> scope authorized in the Admin console). Google reading is not operational yet; use IMAP or Microsoft.
+        </div>
+        <div class="form-grid">
+          <div class="form-group form-group--wide">
+            <label>Service account JSON{% if config.google_sa_json %} <span class="field-hint" style="display:inline;">(leave blank to keep)</span>{% endif %}</label>
+            <textarea name="google_sa_json" rows="5" placeholder='{ "type": "service_account", ... }' autocomplete="off" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payload hosting -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>
+          <svg style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+          </svg>
+          Payload hosting
+        </h2>
+        <span class="text-muted text-sm">Infrastructure you control, required by techniques that deliver their payload externally</span>
+      </div>
+      <div class="card-body">
+
+        <div class="alert" style="background:rgba(234,88,12,0.08);border:1px solid rgba(234,88,12,0.3);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6;">
+          <strong style="color:#ea580c;">These fields are required for some techniques.</strong><br>
+          The techniques below need infrastructure you host. <strong>Until you fill in the matching field,
+          they are disabled in the campaign picker and skipped on launch</strong> (they are never sent with a broken placeholder).
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group form-group--wide">
+            <label>Web server base URL</label>
+            <input type="url" name="web_base_url" value="{{ config.web_base_url or '' }}"
+                   placeholder="https://lab.example.com" autocomplete="off">
+            <span class="field-hint">
+              Base URL of a server you control. Unlocks
+              <strong>T17</strong> (HTML smuggling page, served at <code>/smuggle</code>) and
+              <strong>T28</strong> (URL the QR code points to).
+            </span>
+          </div>
+          <div class="form-group form-group--wide">
+            <label>Trusted cloud payload URL</label>
+            <input type="url" name="cloud_payload_url" value="{{ config.cloud_payload_url or '' }}"
+                   placeholder="https://acct.blob.core.windows.net/c/eicar.com" autocomplete="off">
+            <span class="field-hint">
+              Full URL to an AV-detectable payload (e.g. EICAR) uploaded to <strong>Azure Blob</strong> or
+              <strong>AWS S3</strong>. Unlocks <strong>T29</strong> — tests whether your gateway/proxy trusts
+              the Microsoft/Amazon domain and lets it through ("living off trusted sites").
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="test-result" style="margin-bottom:16px;"></div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button type="button" id="btn-test" class="btn btn-ghost">Test connection</button>
+      <button type="submit" class="btn btn-primary">Save configuration</button>
+    </div>
+
+  </form>
+
+  <script>
+    (function () {
+      var select = document.getElementById('reader_backend');
+      var sections = document.querySelectorAll('.backend-section');
+      function sync() {
+        var v = select.value;
+        sections.forEach(function (el) {
+          el.style.display = (el.getAttribute('data-backend') === v) ? '' : 'none';
+        });
+      }
+      select.addEventListener('change', sync);
+      sync();
+
+      var btn = document.getElementById('btn-test');
+      var out = document.getElementById('test-result');
+      function row(label, r) {
+        var color = r.ok ? '#22c55e' : '#ef4444';
+        var bg = r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+        var icon = r.ok ? '✓' : '✕';
+        var name = label + (r.backend ? ' (' + r.backend + ')' : '');
+        return '<div style="background:' + bg + ';border:1px solid ' + color +
+          '33;border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:13px;">' +
+          '<strong style="color:' + color + ';">' + icon + ' ' + name + '</strong> — ' +
+          (r.message || '') + '</div>';
+      }
+      btn.addEventListener('click', function () {
+        out.innerHTML = '<div class="text-muted text-sm">Testing… (uses the last saved configuration)</div>';
+        btn.disabled = true;
+        fetch('/settings/test', { method: 'POST' })
+          .then(function (res) { return res.json(); })
+          .then(function (d) {
+            if (d.error) { out.innerHTML = row('Error', { ok: false, message: d.error }); return; }
+            out.innerHTML = row('SMTP sending', d.smtp) + row('Mailbox reader', d.reader);
+          })
+          .catch(function (e) { out.innerHTML = row('Error', { ok: false, message: String(e) }); })
+          .finally(function () { btn.disabled = false; });
+      });
+    })();
+  </script>
+
+{% endblock %}

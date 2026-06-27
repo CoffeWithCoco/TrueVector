@@ -1,0 +1,133 @@
+{% extends "layout.html" %}
+{% block title %}Technique reference — TrueVector{% endblock %}
+{% block page_title %}Technique reference{% endblock %}
+{% block topbar_actions %}
+  <a href="/reports" class="btn">&larr; Back to reports</a>
+{% endblock %}
+
+{% block content %}
+<style>
+  /* .content is a flex column; without this its many children get shrunk to fit
+     the viewport (flex-shrink:1) and our overflow:hidden cards collapse to lines.
+     One non-shrinking wrapper keeps natural height and lets .content scroll. */
+  .tref-wrap { flex-shrink: 0; display: flex; flex-direction: column; gap: 24px; }
+  .tref-intro { font-size: .9rem; color: var(--text-muted); line-height: 1.6; }
+  .tref-toc {
+    display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px;
+  }
+  .tref-toc a {
+    font-size: .75rem; font-weight: 600; padding: 4px 9px; border-radius: 6px;
+    border: 1px solid var(--border); color: var(--text-muted);
+    background: var(--surface); transition: all .15s;
+  }
+  .tref-toc a:hover { color: var(--accent); border-color: var(--accent); }
+
+  .tref-card {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+    margin-bottom: 22px; overflow: hidden; scroll-margin-top: 20px;
+  }
+  .tref-head {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 14px 20px; background: rgba(45,212,191,.05);
+    border-bottom: 1px solid var(--border);
+  }
+  .tref-id {
+    font-family: ui-monospace, monospace; font-weight: 700; font-size: .95rem;
+    color: var(--accent);
+  }
+  .tref-name { font-weight: 600; font-size: .95rem; color: var(--text); }
+  .tref-tier {
+    margin-left: auto; font-size: .72rem; color: var(--text-muted);
+    border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px;
+  }
+  .tref-body { padding: 16px 20px; }
+  .tref-section-label {
+    font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--accent); margin: 16px 0 7px;
+  }
+  .tref-section-label:first-child { margin-top: 0; }
+  .tref-rationale { font-size: .865rem; color: var(--text); line-height: 1.62; }
+  .tref-reqs { margin: 0; padding-left: 18px; font-size: .82rem; color: var(--text-muted); }
+  .tref-reqs li { margin: 2px 0; }
+
+  .tref-subject {
+    font-size: .82rem; color: var(--text); margin-bottom: 4px;
+  }
+  .tref-subject span, .tref-hdr span {
+    font-family: ui-monospace, monospace; color: var(--text-muted);
+  }
+  .tref-part-label {
+    font-family: ui-monospace, monospace; font-size: .76rem; font-weight: 600;
+    color: #60a5fa; margin: 12px 0 5px;
+  }
+  .tref-pre {
+    font-family: ui-monospace, monospace; font-size: .76rem; line-height: 1.5;
+    color: var(--text); background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; margin: 0;
+    white-space: pre-wrap; word-break: break-word; overflow-x: auto;
+    max-height: 360px; overflow-y: auto;
+  }
+  .tref-note { font-size: .72rem; color: var(--text-muted); margin-top: 4px; }
+</style>
+
+<div class="tref-wrap">
+
+<div class="card">
+  <div class="card-body" style="padding:16px 20px;">
+    <p class="tref-intro" style="margin:0;">
+      Reference for every technique this tool sends: <strong>why</strong> it is included and
+      the <strong>exact payload</strong> it carries. Techniques are sent stealthiest-first,
+      loudest-last (Tier&nbsp;1&nbsp;&rarr;&nbsp;4). Payloads are inert — links point to
+      test/.invalid hosts or the EICAR test string; no real malware is included. Hidden
+      evasion characters (zero-width spaces, Cyrillic/Greek homoglyphs, HTML entities) are
+      shown escaped as <code>\uXXXX</code> so the trick is visible instead of being silently
+      rendered.
+    </p>
+  </div>
+</div>
+
+<div class="tref-toc">
+  {% for t in techniques %}
+    <a href="#{{ t.id }}" title="{{ t.name }}">{{ t.id }}</a>
+  {% endfor %}
+</div>
+
+{% for t in techniques %}
+<div class="tref-card" id="{{ t.id }}">
+  <div class="tref-head">
+    <span class="tref-id">{{ t.id }}</span>
+    <span class="tref-name">{{ t.name }}</span>
+    <span class="tref-tier">{{ t.tier }} &nbsp;·&nbsp; rank {{ t.rank }}</span>
+  </div>
+  <div class="tref-body">
+    <div class="tref-section-label">Why this technique is tested</div>
+    <div class="tref-rationale">{{ t.rationale }}</div>
+
+    {% if t.requirements %}
+    <div class="tref-section-label">Delivery requirements / notes</div>
+    <ul class="tref-reqs">
+      {% for r in t.requirements %}<li>{{ r }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="tref-section-label">Payload sent</div>
+    {% if t.payload.error %}
+      <p class="tref-note">{{ t.payload.error }}</p>
+    {% else %}
+      <div class="tref-subject">Subject: <span>{{ t.payload.subject }}</span></div>
+      {% for name, value in t.payload.headers %}
+        <div class="tref-subject tref-hdr">{{ name }}: <span>{{ value }}</span></div>
+      {% endfor %}
+      {% for p in t.payload.parts %}
+        <div class="tref-part-label">
+          MIME part: {{ p.content_type }}{% if p.filename %} (filename: {{ p.filename }}){% endif %}{% if p.cte %} [{{ p.cte }}]{% endif %}
+        </div>
+        <pre class="tref-pre">{{ p.content }}</pre>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+</div>
+{% endblock %}

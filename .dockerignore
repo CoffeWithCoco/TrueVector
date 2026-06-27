@@ -1,0 +1,24 @@
+# Secrets and local data — must never be baked into the image
+.env
+data/*.db
+data/secret_key
+
+# Python / virtualenv
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# VCS, editor and tooling
+.git/
+.gitignore
+.vscode/
+.tools/
+
+# Docs not needed at runtime
+README.md
+scripts/
+
+# System
+.DS_Store
+Thumbs.db

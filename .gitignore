@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Datos locales y secretos (se generan en el despliegue)
+data/*.db
+data/*.pdf
+data/secret_key
+.env
+
+# Herramientas de test descargadas (GreenMail jar, logs)
+.tools/
+
+# Config local de editor / herramientas
+.vscode/
+.claude/
+
+# Sistema
+.DS_Store
+Thumbs.db

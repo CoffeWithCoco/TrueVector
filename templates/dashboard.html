@@ -1,0 +1,118 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard — TrueVector{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block topbar_actions %}
+  <a href="/campaigns/new" class="btn btn-primary">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    New campaign
+  </a>
+{% endblock %}
+
+{% block content %}
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon stat-icon--blue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <span class="stat-value">{{ stats.total }}</span>
+        <span class="stat-label">Total campaigns</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon stat-icon--yellow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <span class="stat-value">{{ stats.running }}</span>
+        <span class="stat-label">Running</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon {% if stats.avg_score is not none and stats.avg_score < 50 %}stat-icon--red{% elif stats.avg_score is not none %}stat-icon--green{% else %}stat-icon--muted{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <span class="stat-value">
+          {% if stats.avg_score is not none %}{{ stats.avg_score }}%{% else %}—{% endif %}
+        </span>
+        <span class="stat-label">Average score</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campaigns table -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Recent campaigns</h2>
+    </div>
+
+    {% if campaigns %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Target mailbox</th>
+            <th>Domain</th>
+            <th>Status</th>
+            <th>Score</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in campaigns %}
+          <tr>
+            <td class="text-muted">{{ c.id }}</td>
+            <td class="font-medium">{{ c.name }}</td>
+            <td class="text-muted">{{ c.target_email }}</td>
+            <td class="text-muted">{{ c.domain }}</td>
+            <td><span class="badge badge--{{ c.status }}">{{ c.status }}</span></td>
+            <td>
+              {% if c.score is not none %}
+                <span class="score {% if c.score >= 80 %}score--good{% elif c.score >= 50 %}score--warn{% else %}score--bad{% endif %}">
+                  {{ c.score }}%
+                </span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-muted text-sm">{{ c.created_at.strftime('%d %b %Y') }}</td>
+            <td>
+              <a href="/campaigns/{{ c.id }}" class="btn btn-ghost btn-sm">View →</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+      <h3>No campaigns yet</h3>
+      <p>Create your first campaign to validate your email gateway's controls.</p>
+      <a href="/campaigns/new" class="btn btn-primary">New campaign</a>
+    </div>
+    {% endif %}
+  </div>
+
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+{% block title %}Reports — TrueVector{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 20px;display:flex;align-items:center;gap:16px;justify-content:space-between;flex-wrap:wrap;">
+    <p style="font-size:.875rem;color:var(--text-muted);margin:0;">
+      Completed campaigns with their risk analysis and downloadable PDF report.
+    </p>
+    <a href="/reports/techniques" class="btn" style="white-space:nowrap;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+      Technique reference
+    </a>
+  </div>
+</div>
+
+{% if report_items %}
+<div class="reports-list">
+  {% for item in report_items %}
+  {% set c = item.campaign %}
+  <div class="report-row">
+    <div class="report-info">
+      <div class="report-name">{{ c.name }}</div>
+      <div class="report-meta">
+        {% if c.finished_at %}
+          <span class="report-ts">{{ c.finished_at.strftime("%d %b %Y — %H:%M") }}</span>
+        {% else %}
+          <span class="report-ts">{{ c.created_at.strftime("%d %b %Y") }}</span>
+        {% endif %}
+        <span class="report-tech">{{ item.tech_count }} techniques</span>
+        {% if c.description %}
+          <span class="report-desc">{{ c.description[:80] }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="report-score-wrap">
+      {% set score = c.score or 0 %}
+      <div class="report-score {% if score >= 80 %}score-good{% elif score >= 50 %}score-mid{% else %}score-bad{% endif %}">
+        {{ score }}%
+      </div>
+      <div class="report-score-label">protection</div>
+    </div>
+    <a href="/campaigns/{{ c.id }}/report.pdf" class="btn btn-primary report-dl" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download PDF
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="padding:40px;text-align:center;">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="margin:0 auto 16px;">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
+    </svg>
+    <p style="color:var(--text-muted);font-size:.9rem;margin:0;">
+      No completed campaigns yet. Create and run a campaign to see its report here.
+    </p>
+    <a href="/campaigns/new" class="btn btn-primary" style="margin-top:16px;display:inline-block;">
+      New campaign
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
