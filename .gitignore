@@ -13,10 +13,6 @@ data/secret_key
 # Herramientas de test descargadas (GreenMail jar, logs)
 .tools/
 
-# Config local de editor / herramientas
-.vscode/
-
-
 # Sistema
 .DS_Store
 Thumbs.db
