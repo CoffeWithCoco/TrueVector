@@ -61,9 +61,37 @@ backend uses only the Python standard library (`urllib`) — no extra dependency
 
 ## Deployment
 
+### Install Docker
+
+You need Docker Engine + the Compose plugin.
+
+```bash
+# Debian / Ubuntu (official repo — gives `docker compose`, no hyphen)
+sudo apt update && sudo apt install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+```
+
+> **Kali / Debian-testing note.** Docker's repo has no `kali-rolling` (or testing) channel, so
+> the steps above produce *"no installation candidate"*. On Kali use the distro packages instead —
+> they ship the standalone `docker-compose` binary (invoke it **with** the hyphen):
+> ```bash
+> sudo rm -f /etc/apt/sources.list.d/docker.list   # if you added the docker repo
+> sudo apt update && sudo apt install -y docker.io docker-compose
+> sudo systemctl enable --now docker
+> sudo usermod -aG docker $USER && newgrp docker
+> ```
+
+### Run
+
 ```bash
 cp .env.example .env        # optional: adjust variables
-docker compose up -d
+docker compose up -d        # on Kali/docker.io: docker-compose up -d
 docker compose logs web     # shows the credentials generated on first boot
 ```
 
@@ -85,6 +113,54 @@ python -m venv .venv && .venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
+
+---
+
+## Provider setup (credentials & prerequisites)
+
+TrueVector has **two independent sides** and each needs its own credential:
+
+- **Sender** — an *external, untrusted* account that emits the test emails over **SMTP**.
+- **Receiver / reader** — the mailbox **you own and audit**, read back over **IMAP** or **Microsoft Graph**.
+
+> **Methodology reminder:** the sender must be in a *different* organization from the receiver, so the
+> mail is treated as a real external attack. Sending from the same tenant you audit distorts the results.
+> A valid setup is e.g. **corporate Outlook → personal Gmail**, or **a dedicated Gmail → your M365 tenant**.
+
+### Sender (SMTP)
+
+| Provider | Host / Port | What you must enable first |
+|---|---|---|
+| **Gmail** | `smtp.gmail.com` : 587 (STARTTLS) | 2-Step Verification **on**, then create an [App Password](https://myaccount.google.com/apppasswords) (16 chars). Your normal password will **not** work. |
+| **Outlook.com (personal)** | `smtp-mail.outlook.com` : 587 | Turn on two-step verification in [account security](https://account.microsoft.com/security), then create an **App password** there. |
+| **Microsoft 365 (work/school)** | `smtp.office365.com` : 587 | A tenant **admin** must enable **Authenticated SMTP** for the mailbox (*Admin center → Users → Mail → Manage email apps → Authenticated SMTP*). If MFA is enforced you also need an App password from [Security info](https://mysignins.microsoft.com/security-info); many tenants block app passwords via Conditional Access, in which case basic SMTP is not possible. |
+
+Always use a **dedicated test account** as the sender — emitting EICAR/macros/ISO/LNK can get a real
+account flagged or suspended.
+
+### Receiver / mailbox reader
+
+| Backend | Use it for | Setup |
+|---|---|---|
+| **IMAP** | Gmail, Outlook.com, Google Workspace, any IMAP host | **Enable IMAP in the mailbox first** (Gmail: *Settings → Forwarding and POP/IMAP → Enable IMAP*; Workspace admins may have to allow it org-wide). Then use an **App Password** + `imap.gmail.com` : 993 (SSL) / `outlook.office365.com` : 993. |
+| **Microsoft Graph (app-only)** | M365 tenants where IMAP basic auth is disabled | Register an app in Entra ID, grant `Mail.Read` (application), create a client secret. Standard-library only, no extra dependency. |
+
+> The Gmail **API** reader backend is stubbed — to read a Gmail/Workspace mailbox use **IMAP** (enabled as above).
+
+### Network / firewall
+
+- The host running TrueVector must reach **outbound 587/465** (SMTP) and **993** (IMAP) / **443** (Graph).
+- **Cloud VMs (Azure/AWS) frequently block outbound SMTP (25/587/465) by default** as an anti-spam measure —
+  if sends time out on a cloud VM, that block is the usual cause and must be lifted with the provider.
+
+### Common first-run issues
+
+| Symptom | Cause / fix |
+|---|---|
+| Techniques arrive but all show **NOT_FOUND** | IMAP not enabled on the receiver mailbox, or wrong reader credentials. |
+| **Test connection** fails on SMTP for M365/Outlook | Authenticated SMTP disabled, or the account has MFA without an App password. |
+| No **App password** option appears (M365) | Tenant policy/Conditional Access blocks them — use an external account for sending instead. |
+| Sends hang/time out on a cloud VM | Provider blocks outbound SMTP ports — request an exception. |
 
 ---
 
